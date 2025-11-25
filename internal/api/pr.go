@@ -16,11 +16,15 @@ func createPR(c echo.Context) error {
 		log.Printf("Error binding request body: %v", err)
 		return c.JSON(http.StatusBadRequest, err.Error())
 	}
-
 	// Получаем ID автора
 	authorID := pr.AuthorID
 	teamID := pr.TeamID
 
+	pr, err := db.CreatePRdb(pr)
+	if err != nil {
+		log.Printf("Error creating PR: %v", err)
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
 	// Назначаем ревьюеров
 	reviewers, err := usecase.AssignReviewers(pr.ID, authorID, teamID)
 	if err != nil {

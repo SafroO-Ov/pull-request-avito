@@ -75,16 +75,58 @@ func UpdatePR(prID int, newTitle string, newStatus string) (PRequest, error) {
 	if err := DB.Save(&pr).Error; err != nil {
 		return pr, fmt.Errorf("failed to update PR: %w", err)
 	}
+	// Если статус меняется на MERGED, удаляем записи из assignments
+	if pr.Status == "MERGED" {
+		err := DB.Table("assignments").
+			Where("pr_id = ?", prID).
+			Delete(&Assignment{}).Error
+		if err != nil {
+			return pr, fmt.Errorf("failed to delete assignments for PR %d: %w", prID, err)
+		}
+	}
 
 	return pr, nil
 }
+func CreatePRdb(request PRequest) (PRequest, error) {
+	// Добавляем PR в базу данных с помощью GORM
+	if err := DB.Create(&request).Error; err != nil {
+		return request, fmt.Errorf("failed to create PR: %w", err)
+	}
+	return request, nil
+}
 
 // Назначение ревьюеров для PR
-func AssignReviewersToPR(prID int, reviewers []int) error {
-	for _, reviewerID := range reviewers {
-		assignment := Assignment{PRID: prID, UserID: reviewerID}
-		if err := DB.Create(&assignment).Error; err != nil {
-			return fmt.Errorf("error assigning reviewer: %w", err)
+func AssignReviewersToPR(prID int, reviewerIDs []int) error {
+	// Если ревьюеров меньше 2, то оставляем столько, сколько есть
+	if len(reviewerIDs) > 2 {
+		reviewerIDs = reviewerIDs[:2] // Ограничиваем назначение двумя ревьюерами
+	}
+
+	// Для каждого ревьюера создаём запись в таблице assignments
+	for _, reviewerID := range reviewerIDs {
+		// Проверяем, не был ли уже назначен этот ревьюер
+		var count int64
+		err := DB.Table("assignments").
+			Where("pr_id = ? AND user_id = ?", prID, reviewerID).
+			Count(&count).Error
+
+		if err != nil {
+			return fmt.Errorf("failed to check if reviewer %d is already assigned to PR %d: %w", reviewerID, prID, err)
+		}
+
+		// Если ревьюер уже назначен, пропускаем его
+		if count > 0 {
+			continue
+		}
+
+		// Добавляем ревьюера в таблицу assignments
+		err = DB.Table("assignments").Create(&Assignment{
+			PRID:   prID,
+			UserID: reviewerID,
+		}).Error
+
+		if err != nil {
+			return fmt.Errorf("failed to assign reviewer %d to PR %d: %w", reviewerID, prID, err)
 		}
 	}
 	return nil
