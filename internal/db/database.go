@@ -8,17 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
+var DB *gorm.DB
 
 func InitDB() {
 	dsn := "host=localhost user=postgres password=1234 dbname=postgres port=5432 sslmode=disable"
 	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to the database: ", err)
 	}
 
-	if err := db.AutoMigrate(&User{}, &Team{}, &PR{}, &Assignment{}); err != nil {
+	if err := DB.AutoMigrate(&User{}, &Team{}, &PRequest{}, &Assignment{}); err != nil {
 		log.Fatal("Failed to apply migrations: ", err)
 	} else {
 		log.Println("Database migration succeeded")
